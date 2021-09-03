@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.day.dto.RepBoardMapper">
+
+<resultMap id="repBoardResultMap" type="repboard2" autoMapping="true">
+	<id column="board_no" property="boardNo"/>
+<!-- <result column="rn" property="rn"/>
+    <result column="lvl" property="lvl"/>
+	<result column="parent_no"  property="parentNo"/>
+	<result column="board_title"  property="boardTitle"/>
+	<result column="board_content"  property="boardContent"/>
+	<result column="board_viewcount"  property="boardViewcount"/>
+	<result column="board_dt"  property="boardDt"/>  -->
+	<association javaType="customer" property="boardC">
+		  <result column="board_id"  property="id"/>
+	</association>
+</resultMap>
+
+
+<!-- 글쓰기, 답글쓰기 -->
+<insert id="insert" parameterType="repboard">
+INSERT INTO repboard(board_no, parent_no,	 board_id,	 board_title, 	board_content,board_viewcount)
+    VALUES (board_seq.NEXTVAL, #{parentNo}, #{boardC.id}, #{boardTitle},#{boardContent},0) 
+     <selectKey keyProperty="boardNo" resultType="int" order="AFTER">
+		SELECT board_seq.CURRVAL FROM dual    
+	</selectKey>   
+</insert>
+
+<!-- 
+<insert id="insert" parameterType="repboard">
+INSERT INTO repboard(board_no, parent_no,	 board_id,	 board_title, 	board_content,board_viewcount)
+    VALUES (board_seq.NEXTVAL, #{parentNo}, #{boardC.id}, #{boardTitle},#{boardContent},0)   
+</insert> -->
+
+<!-- 현재페이지 리스트2 -->
+<select id="selectAllPage" parameterType="java.util.HashMap" resultMap="repBoardResultMap">
+SELECT *
+FROM (SELECT ROWNUM AS rn, lvl,board_no, parent_no,	board_id,board_title, board_content,board_viewcount,board_dt
+        FROM (SELECT level AS lvl,board_no, parent_no,	board_id,board_title, board_content,board_viewcount,board_dt
+                FROM repboard
+                START WITH parent_no=0  
+                CONNECT BY PRIOR board_no = parent_no
+                ORDER SIBLINGS BY board_no DESC))
+WHERE rn BETWEEN START_ROW(#{currentPage},#{cnt_per_page}) AND END_ROW(#{currentPage},#{cnt_per_page})
+</select>
+
+<select id="selectByWordPage" parameterType="java.util.HashMap" resultMap="repBoardResultMap">
+SELECT *
+FROM (SELECT ROWNUM AS rn, lvl,board_no, parent_no,	board_id,board_title, board_content,board_viewcount,board_dt
+        FROM (SELECT level AS lvl,board_no, parent_no,	board_id,board_title, board_content,board_viewcount,board_dt
+                FROM repboard
+                WHERE board_title LIKE '%${word}%' OR board_content LIKE '%${word}%'
+                START WITH parent_no=0  
+                CONNECT BY PRIOR board_no = parent_no
+                ORDER SIBLINGS BY board_no DESC))
+WHERE rn BETWEEN START_ROW(#{currentPage},#{cnt_per_page}) AND END_ROW(#{currentPage},#{cnt_per_page})
+</select>
+
+
+
+<select id="total" resultType="int">
+SELECT COUNT(board_no) AS cnt FROM repboard
+</select>
+
+<select id="totalWord" parameterType="int" resultType="int">
+SELECT COUNT(board_no) AS cnt FROM repboard
+WHERE board_title LIKE '%${word}%' 
+OR board_content LIKE '%${word}%'
+</select>
+
+<!-- 전체 게시글 -->
+<select id="selectAll" resultType="repboard">
+SELECT level,repboard.*, board_id "boardC.id"
+FROM repboard
+START WITH parent_no=0  
+CONNECT BY PRIOR board_no = parent_no
+ORDER SIBLINGS BY board_no DESC
+</select>
+
+
+<!-- 단어검색 -->
+<select id="selectByWord" resultType="repboard">
+SELECT repboard.*, board_id "boardC.id"
+FROM repboard
+WHERE board_title LIKE '%${word}%' 
+OR board_content LIKE '%${word}%'
+</select>
+
+ 
+<select id="selectByNo" parameterType="int" resultType="repboard">
+SELECT repboard.*, board_id "boardC.id"
+FROM repboard
+WHERE board_no=#{boardNo}
+</select>
+
+
+<select id="selectByParentNo" parameterType="int" resultType="repboard">
+SELECT repboard.*, board_id "boardC.id"
+FROM repboard
+WHERE Parent_no=#{Parent_no}
+</select>
+
+
+<update id="plusViewCount" parameterType="int">
+UPDATE repboard SET board_viewcount = board_viewcount+1 WHERE board_no=#{boardNo}
+</update>
+
+<update id="update" parameterType="repBoard">
+UPDATE repboard
+SET board_content=#{boardContent}
+WHERE board_no = #{boardNo} AND board_id = #{boardC.id}
+</update>
+<!-- 
+<delete id="deleteReply" parameterType="int">
+DELETE FROM repboard
+WHERE parent_no = #{boardNo}
+</delete>
+ -->
+<delete id="deleteReply" parameterType="int">
+DELETE FROM repboard
+WHERE board_no IN(
+  SELECT board_no
+  FROM ( 
+    SELECT rownum r, a.*
+    FROM (
+       SELECT *
+       FROM repboard
+       ORDER BY board_no desc
+     ) a  
+  START WITH parent_no = #{board_no} 
+  CONNECT BY PRIOR board_no = parent_no
+)
+)
+</delete>
+
+<delete id="deleteWrite" parameterType="repboard">
+DELETE FROM repboard
+WHERE board_no = #{boardNo} AND board_id = #{boardC.id}
+</delete>
+
+
+
+
+</mapper>
